@@ -10,10 +10,22 @@ import javax.script.ScriptEngineManager
 fun main(vararg args: String) {
     val engine = ScriptEngineManager().getEngineByExtension("main.kts")!!
 
-    print("> ")
-    System.`in`.reader().forEachLine {
-        val res = engine.eval(it)
-        println(res)
-        print("> ")
+    val commands = sequence {
+        while (true){
+            print("> ")
+            val line = readLine() ?: return@sequence
+            yield(line)
+        }
+
+    }
+
+    commands.forEach {
+        try {
+            val res = engine.eval(it)
+            println(res)
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+            Thread.sleep(100)
+        }
     }
 }

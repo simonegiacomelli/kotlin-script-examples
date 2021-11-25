@@ -7,7 +7,10 @@ package org.jetbrains.kotlin.script.examples.jvm.simple.host
 
 import org.jetbrains.kotlin.script.examples.jvm.simple.SimpleScript
 import java.io.File
+import java.nio.file.Files
+import java.util.function.Supplier
 import kotlin.script.experimental.api.EvaluationResult
+import kotlin.script.experimental.api.ResultValue
 import kotlin.script.experimental.api.ResultWithDiagnostics
 import kotlin.script.experimental.host.toScriptSource
 import kotlin.script.experimental.jvm.dependenciesFromClassloader
@@ -40,16 +43,52 @@ fun evalFile(scriptFile: File): ResultWithDiagnostics<EvaluationResult> {
 }
 
 fun main(vararg args: String) {
+    println(File(".").canonicalPath)
     if (args.size != 1) {
         println("usage: <app> <script file>")
     } else {
         val scriptFile = File(args[0])
-        println("Executing script $scriptFile")
+        val watcher = Watch(scriptFile)
+        while (true) {
+            println("Executing script $scriptFile")
 
-        val res = evalFile(scriptFile)
+            val res = evalFile(scriptFile)
 
-        res.reports.forEach {
-            println(" : ${it.message}" + if (it.exception == null) "" else ": ${it.exception}")
+            res.reports.forEach {
+                println(" : ${it.message} ${it.location}" + if (it.exception == null) "" else ": ${it.exception}")
+            }
+            if (res is ResultWithDiagnostics.Success<EvaluationResult>) {
+                val value = res.value.returnValue
+                println(value)
+                if ( value is ResultValue.Value) {
+                    val scriptResult = value.value
+                    if (scriptResult is Supplier<*>) {
+                        println("==== supplied ${scriptResult.get()}")
+                    }
+                }
+            }
+
+            watcher.waitUntilChanged()
         }
+    }
+}
+
+
+class Watch(file: File) {
+    private val path = file.toPath()
+    private var state: String = newState()
+
+    fun waitUntilChanged() {
+        val old = state
+        do {
+            Thread.sleep(50)
+            state = newState()
+        } while (old == state)
+    }
+
+    private fun newState(): String {
+        val size = Files.size(path)
+        val mod = Files.getLastModifiedTime(path).toMillis()
+        return "size:$size modifiedTime:$mod"
     }
 }
